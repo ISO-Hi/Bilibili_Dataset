@@ -1,5 +1,4 @@
 # Bilibili_Dataset
-DEVELOP IN PROGRESS
 This publicly available dataset includes the daily top 100 video details from the Chinese video platform bilibili.com. It includes video titles, uploaders, view counts, comment sections, popular comments, descriptions, and, when available, AI summaries. 
 
 Feel free to fork this repository to create datasets for other social media platforms like Weibo, Douyin, RED, and Twitter.
