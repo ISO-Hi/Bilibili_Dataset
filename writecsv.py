@@ -1,13 +1,11 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+
 import requests
 from bs4 import BeautifulSoup
 import time
 import csv
 import os
 import pandas as pd
+import re
 from bilibili_api import video, sync
 from datetime import datetime
 
@@ -15,6 +13,10 @@ from getlink import file_path_csv
 from getlink import base_dir
 
 
+ 
+headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Safari/537.36'
+}
 links = []
 plays_num=[]
 description=[]
@@ -24,35 +26,51 @@ coin_num=[]
 fav_num=[]
 share_num=[]
 tags=[]
+date=[]
 with open(file_path_csv, mode='r', encoding='utf-8') as file:
     csv_reader = csv.reader(file)
     next(csv_reader)
     for row in csv_reader:
         links.append(row[2])
-driver = webdriver.Safari()
 for i in range (100):
     
-    #获取弹幕文件
-    v = video.Video(bvid=links[i][-12:])
-    try:
-        dms = sync(v.get_danmakus(0))
-        print("success_"+links[i][-12:])
-    except KeyError:
-        dms = []
-        print("KE")
-    with open(base_dir+"/"+links[i][-12:]+".txt", "w", encoding="utf-8") as file:
-        for dm in dms:
-            file.write(str(dm)+'\n')
-    time.sleep(20)
-   
-    
     url = links[i]
-    driver.get(url)
-   
-    WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CLASS_NAME, "video-share-info-text"))) 
-    #time.sleep(5)
-    html_source = driver.page_source
-    soup = BeautifulSoup(html_source, "html.parser")
+    video_request = requests.get(url=url, headers=headers)
+    soup = BeautifulSoup(video_request.text, "html.parser")
+    #获取弹幕文件
+    # 查找包含 'window.__playinfo__' 的 <script> 标签
+    script_tag = soup.find("script", text=lambda t: t and "window.__playinfo__" in t)
+    if script_tag:
+
+        script_content = script_tag.string
+
+        # 使用正则表达式从 URL 中提取 cid 值
+        cid_match = re.search(r'/(\d{10})/', script_content)
+
+        if cid_match:
+            cid = cid_match.group(1)
+            #print(f"Found CID: {cid}")
+
+            # 构建弹幕的 URL
+            danmaku_url = f"https://comment.bilibili.com/{cid}.xml"
+
+            # 获取弹幕数据
+            danmaku_request = requests.get(url=danmaku_url, headers=headers)
+            danmaku_request.encoding = 'utf-8'
+
+            # 提取弹幕内容
+            danmaku_soup = BeautifulSoup(danmaku_request.text, 'lxml')
+            results = danmaku_soup.find_all('d')
+
+            # 数据处理
+            data = [d.text.strip() for d in results]  # 使用 strip() 去除多余的空格和换行
+
+            # 保存到 CSV 文件
+            df = pd.DataFrame(data)
+            df.to_csv(base_dir+"/"+links[i][-12:]+".csv", index=False, header=None, encoding="utf_8_sig")
+        else: print(links[i][-12:]+"failed")
+
+
     #获取播放量
     element=soup.find("div",class_="view-text")
     if element:
@@ -92,7 +110,7 @@ for i in range (100):
     else:
         fav_num.append("Not Found")
     #获取分享量
-    element=soup.find("span", class_="video-share-info-text")
+    element=soup.find("span", class_="video-share-info video-toolbar-item-text")
     if element:
         share_num.append(element.get_text(strip=True))
     else:
@@ -110,12 +128,21 @@ for i in range (100):
         tag=["Not Found"]
 
     tags.append(tag)
+    #获取日期
+    element=soup.find("div", class_="pubdate-ip-text")
+    if element:
+        date.append(element.get_text(strip=True))
+    else:
+        date.append("Not Found")
+
+    print(str(i)+" success")
    
-driver.quit()
+
 #print(tags)
 #print(share_num)
 
 df = pd.read_csv(file_path_csv)
+
 df["播放量"] = plays_num
 df["弹幕量"] = bullet_comments_num
 df["简介"]= description
@@ -124,7 +151,7 @@ df["投币量"]=coin_num
 df["收藏量"]=fav_num
 df["分享量"]=share_num
 df["分区"]=tags
-
+df['上传日期']=date
 df.to_csv(file_path_csv, index=False)
 
 
