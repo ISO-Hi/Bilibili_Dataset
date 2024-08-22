@@ -43,32 +43,30 @@ for i in range (100):
     if script_tag:
 
         script_content = script_tag.string
+        base_url_match = script_content[script_content.find("baseUrl")+10:script_content.find("baseUrl")+300]
+        #print(base_url_match)
+        cid=base_url_match.split('/')[6]
 
-        # 使用正则表达式从 URL 中提取 cid 值
-        cid_match = re.search(r'/(\d{10})/', script_content)
-
-        if cid_match:
-            cid = cid_match.group(1)
             #print(f"Found CID: {cid}")
 
             # 构建弹幕的 URL
-            danmaku_url = f"https://comment.bilibili.com/{cid}.xml"
+        danmaku_url = f"https://comment.bilibili.com/{cid}.xml"
 
-            # 获取弹幕数据
-            danmaku_request = requests.get(url=danmaku_url, headers=headers)
-            danmaku_request.encoding = 'utf-8'
+        # 获取弹幕数据
+        danmaku_request = requests.get(url=danmaku_url, headers=headers)
+        danmaku_request.encoding = 'utf-8'
 
-            # 提取弹幕内容
-            danmaku_soup = BeautifulSoup(danmaku_request.text, 'lxml')
-            results = danmaku_soup.find_all('d')
+            # 提取弹幕内容            
+        danmaku_soup = BeautifulSoup(danmaku_request.text, 'lxml')
+        results = danmaku_soup.find_all('d')
 
             # 数据处理
-            data = [d.text.strip() for d in results]  # 使用 strip() 去除多余的空格和换行
+        data = [d.text.strip() for d in results]  # 使用 strip() 去除多余的空格和换行
+        
+                # 保存到 CSV 文件
+        df = pd.DataFrame(data)
+        df.to_csv(base_dir+"/"+links[i][-12:]+".csv", index=False, header=None, encoding="utf_8_sig")
 
-            # 保存到 CSV 文件
-            df = pd.DataFrame(data)
-            df.to_csv(base_dir+"/"+links[i][-12:]+".csv", index=False, header=None, encoding="utf_8_sig")
-        else: print(links[i][-12:]+"failed")
 
 
     #获取播放量
